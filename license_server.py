@@ -22,6 +22,34 @@ def create_license():
     return jsonify({"license": key, "expire": expire})
 
 # --------------------
+# 몰라인마
+# --------------------
+@app.route("/api/drm/check", methods=["POST"])
+def check_license():
+    data = request.json
+    key = data.get("license")
+    ip = data.get("ip")
+
+    if key not in licenses:
+        return jsonify({"valid": False, "message": "잘못된 라이센스"}), 200
+
+    lic = licenses[key]
+
+    if not lic["active"]:
+        return jsonify({"valid": False, "message": "비활성화된 라이센스"}), 200
+
+    # IP 체크
+    if lic["ip"] is None:
+        # 첫 사용 시 IP 기록
+        lic["ip"] = ip
+    elif lic["ip"] != ip:
+        # 다른 IP에서 접근 시 허용 안됨
+        return jsonify({"valid": False, "message": "허용되지 않은 IP에서 라이센스 사용"}), 200
+
+    return jsonify({"valid": True, "message": "정상 라이센스"}), 200
+
+
+# --------------------
 # 라이센스 목록
 # --------------------
 @app.route("/api/drm/list", methods=["GET"])
@@ -74,3 +102,4 @@ def check_license():
 # --------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
+
