@@ -73,48 +73,75 @@ def check_license(key):
 # ------------------
 # API
 # ------------------
-    
+
+
 @app.route("/api/drm/create", methods=["POST"])
 def api_create():
     data = request.json
-    days = data.get("days", 30)
-    key = create_license(days)
-    return jsonify({"success": True, "license": key})
+    days = data.get("days")
+    if not days:
+        return jsonify({"success": False, "message": "기간(days)이 필요합니다"}), 400
+    key, remaining = create_license_logic(days)
+    return jsonify({"success": True, "license": key, "remaining_days": remaining})
 
 @app.route("/api/drm/activate", methods=["POST"])
 def api_activate():
     data = request.json
     key = data.get("license")
-    success, msg = activate_license(key)
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
+    success, msg = activate_license_logic(key)
     return jsonify({"success": success, "message": msg})
 
 @app.route("/api/drm/deactivate", methods=["POST"])
 def api_deactivate():
     data = request.json
     key = data.get("license")
-    success, msg = deactivate_license(key)
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
+    success, msg = deactivate_license_logic(key)
     return jsonify({"success": success, "message": msg})
 
 @app.route("/api/drm/extend", methods=["POST"])
 def api_extend():
     data = request.json
     key = data.get("license")
-    days = data.get("days", 0)
-    success, msg = extend_license(key, days)
+    days = data.get("days")
+    if not key or not days:
+        return jsonify({"success": False, "message": "라이센스와 연장 일수 필요"}), 400
+    success, msg = extend_license_logic(key, days)
     return jsonify({"success": success, "message": msg})
 
 @app.route("/api/drm/check", methods=["POST"])
 def api_check():
     data = request.json
     key = data.get("license")
-    valid, msg = check_license(key)
+    if not key:
+        return jsonify({"valid": False, "message": "라이센스 필요"}), 400
+    valid, msg = check_drm_logic(key)
     return jsonify({"valid": valid, "message": msg})
+
+@app.route("/api/drm/list", methods=["GET"])
+def api_list():
+    licenses = load_licenses()
+    out = []
+    for k, v in licenses.items():
+        out.append({
+            "license": v["raw"],
+            "active": v["active"],
+            "disabled": v["disabled"],
+            "created_at": v["created_at"],
+            "expires_at": v["expires_at"]
+        })
+    return jsonify({"licenses": out})
+
 
 # ------------------
 # 실행
 # ------------------
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
 
