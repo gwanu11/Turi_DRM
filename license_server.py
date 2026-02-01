@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
-licenses = {}  # {"TURI-DRM-XXXX": {"expire": "2026-02-03 12:00:00", "active": True, "ip": None}}
+# 라이센스 저장 구조
+# {"TURI-DRM-YYYYMMDDHHMMSS": {"expire": "2026-02-01 12:00:00", "active": True, "ip": None}}
+licenses = {}
 
 # --------------------
 # 라이센스 생성
@@ -22,7 +24,13 @@ def create_license():
 # --------------------
 @app.route("/api/drm/list", methods=["GET"])
 def list_licenses():
-    return jsonify({"licenses": licenses})
+    result = {}
+    for k, v in licenses.items():
+        expire_str = v.get("expire", "없음")
+        active = v.get("active", True)
+        ip = v.get("ip", "없음")
+        result[k] = {"expire": expire_str, "active": active, "ip": ip}
+    return jsonify({"licenses": result})
 
 # --------------------
 # 라이센스 활성화
@@ -37,7 +45,7 @@ def activate_license():
     return jsonify({"success": False, "reason": "라이센스 없음"})
 
 # --------------------
-# 새 Lock API
+# 라이센스 비활성화 / Lock
 # --------------------
 @app.route("/api/drm/lock", methods=["POST"])
 def lock_license():
@@ -65,7 +73,7 @@ def check_license():
     if not lic["active"]:
         return jsonify({"valid": False, "message": "비활성화된 라이센스"}), 200
 
-    # IP 제한: 첫 사용이면 기록, 다른 IP 사용 시 오류
+    # IP 제한
     if lic["ip"] is None:
         lic["ip"] = ip
     elif lic["ip"] != ip:
@@ -73,6 +81,5 @@ def check_license():
 
     return jsonify({"valid": True, "message": "정상 라이센스"}), 200
 
-# --------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
