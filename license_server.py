@@ -131,9 +131,10 @@ def api_extend():
     success, msg = extend_license(key, days)
     return jsonify({"success": success, "message": msg})
 
-@app.route("/api/drm/list", methods=["GET"])
+@app.route("/api/drm/list", methods=["POST"])
 def api_list():
     licenses = load_licenses()
+    # 필요 없는 HTML 페이지가 아니라 JSON으로 반환
     return jsonify({"success": True, "licenses": licenses})
 
     
@@ -166,5 +167,6 @@ def api_lock():
 # ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
