@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, render_template_string, redirect, url
 
 app = Flask(__name__)
 
-ALLOWED_IP = "58.29.53.212"
+ALLOWED_IP = "192.168.123.114"
 
 LICENSES = {
     "ABC-123-XYZ": {
@@ -226,3 +226,4 @@ th {
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
