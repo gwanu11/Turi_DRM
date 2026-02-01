@@ -3,11 +3,7 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
-# --------------------
-# 라이센스 저장
-# --------------------
-licenses = {}  
-# 구조 예시: {"TURI-DRM-20260201120000": {"expire": "2026-02-03 12:00:00", "active": True, "ip": None}}
+licenses = {}  # {"TURI-DRM-XXXX": {"expire": "2026-02-03 12:00:00", "active": True, "ip": None}}
 
 # --------------------
 # 라이센스 생성
@@ -20,34 +16,6 @@ def create_license():
     expire = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     licenses[key] = {"expire": expire, "active": True, "ip": None}
     return jsonify({"license": key, "expire": expire})
-
-# --------------------
-# 몰라인마
-# --------------------
-@app.route("/api/drm/check", methods=["POST"])
-def check_license():
-    data = request.json
-    key = data.get("license")
-    ip = data.get("ip")
-
-    if key not in licenses:
-        return jsonify({"valid": False, "message": "잘못된 라이센스"}), 200
-
-    lic = licenses[key]
-
-    if not lic["active"]:
-        return jsonify({"valid": False, "message": "비활성화된 라이센스"}), 200
-
-    # IP 체크
-    if lic["ip"] is None:
-        # 첫 사용 시 IP 기록
-        lic["ip"] = ip
-    elif lic["ip"] != ip:
-        # 다른 IP에서 접근 시 허용 안됨
-        return jsonify({"valid": False, "message": "허용되지 않은 IP에서 라이센스 사용"}), 200
-
-    return jsonify({"valid": True, "message": "정상 라이센스"}), 200
-
 
 # --------------------
 # 라이센스 목록
@@ -69,10 +37,10 @@ def activate_license():
     return jsonify({"success": False, "reason": "라이센스 없음"})
 
 # --------------------
-# 라이센스 비활성화
+# 새 Lock API
 # --------------------
 @app.route("/api/drm/lock", methods=["POST"])
-def deactivate_license():
+def lock_license():
     data = request.json
     key = data.get("license")
     if key in licenses:
@@ -81,25 +49,30 @@ def deactivate_license():
     return jsonify({"success": False, "reason": "라이센스 없음"})
 
 # --------------------
-# 라이센스 체크 (DRM 프로그램용)
+# 라이센스 체크 (IP 제한 포함)
 # --------------------
 @app.route("/api/drm/check", methods=["POST"])
 def check_license():
     data = request.json
     key = data.get("license")
     ip = data.get("ip")
+
     if key not in licenses:
         return jsonify({"valid": False, "message": "잘못된 라이센스"}), 200
+
     lic = licenses[key]
+
     if not lic["active"]:
         return jsonify({"valid": False, "message": "비활성화된 라이센스"}), 200
-    # IP 기록
-    lic["ip"] = ip
+
+    # IP 제한: 첫 사용이면 기록, 다른 IP 사용 시 오류
+    if lic["ip"] is None:
+        lic["ip"] = ip
+    elif lic["ip"] != ip:
+        return jsonify({"valid": False, "message": "허용되지 않은 IP에서 라이센스 사용"}), 200
+
     return jsonify({"valid": True, "message": "정상 라이센스"}), 200
 
 # --------------------
-# 서버 실행
-# --------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
-
+    app.run(host="0.0.0.0", port=10000)
