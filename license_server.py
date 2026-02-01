@@ -1,22 +1,34 @@
 from flask import Flask, request, jsonify
-import json, uuid, hashlib, os
+import uuid, json, os
 from datetime import datetime, timedelta
+import hashlib
 
-app = Flask(__name__)
+# ------------------
+# 설정
+# ------------------
 LICENSE_FILE = "licenses.json"
 SECRET_KEY = "MY_SUPER_SECRET_KEY"
+
+app = Flask(__name__)
 
 # ------------------
 # 유틸
 # ------------------
-def now(): return datetime.utcnow()
-def hash_key(key): return hashlib.sha256((key + SECRET_KEY).encode()).hexdigest()
+def now():
+    return datetime.utcnow()
+
+def hash_key(key: str) -> str:
+    return hashlib.sha256((key + SECRET_KEY).encode()).hexdigest()
+
 def load_licenses():
     if not os.path.exists(LICENSE_FILE):
-        with open(LICENSE_FILE, "w") as f: json.dump({}, f)
-    with open(LICENSE_FILE, "r") as f: return json.load(f)
+        return {}
+    with open(LICENSE_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 def save_licenses(data):
-    with open(LICENSE_FILE, "w") as f: json.dump(data, f, indent=4)
+    with open(LICENSE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 # ------------------
 # 라이센스 로직
@@ -60,7 +72,7 @@ def extend_license(key, days):
     save_licenses(licenses)
     return True, f"{days}일 연장 완료"
 
-def check_license(key):
+def check_drm_logic(key):
     licenses = load_licenses()
     hashed = hash_key(key)
     if hashed not in licenses: return False, "라이센스 없음"
@@ -71,70 +83,8 @@ def check_license(key):
     return True, "정상"
 
 # ------------------
-# API
+# API 엔드포인트
 # ------------------
-
-@app.route("/api/drm/lock", methods=["POST"])
-def api_lock():
-    data = request.json
-    key = data.get("license")
-    
-    if not key:
-        return jsonify({"success": False, "message": "라이센스 필요"}), 400
-
-    licenses = load_licenses()
-    hashed = hash_key(key)
-
-    if hashed not in licenses:
-        return jsonify({"success": False, "message": "라이센스 없음"}), 404
-
-    # 비활성화 처리
-    licenses[hashed]["disabled"] = True
-    licenses[hashed]["active"] = False
-    save_licenses(licenses)
-
-    # 로그 기록 (선택사항: 파일이나 DB에 기록 가능)
-    print(f"🚨 라이센스 {key}가 강제 비활성화되었습니다!")
-
-    return jsonify({"success": True, "message": "라이센스 강제 비활성화 완료"})
-    
-@app.route("/api/drm/create", methods=["POST"])
-def api_create():
-    data = request.json
-    days = data.get("days")
-    if not days:
-        return jsonify({"success": False, "message": "기간(days)이 필요합니다"}), 400
-    key, remaining = create_license_logic(days)
-    return jsonify({"success": True, "license": key, "remaining_days": remaining})
-
-@app.route("/api/drm/activate", methods=["POST"])
-def api_activate():
-    data = request.json
-    key = data.get("license")
-    if not key:
-        return jsonify({"success": False, "message": "라이센스 필요"}), 400
-    success, msg = activate_license_logic(key)
-    return jsonify({"success": success, "message": msg})
-
-@app.route("/api/drm/deactivate", methods=["POST"])
-def api_deactivate():
-    data = request.json
-    key = data.get("license")
-    if not key:
-        return jsonify({"success": False, "message": "라이센스 필요"}), 400
-    success, msg = deactivate_license_logic(key)
-    return jsonify({"success": success, "message": msg})
-
-@app.route("/api/drm/extend", methods=["POST"])
-def api_extend():
-    data = request.json
-    key = data.get("license")
-    days = data.get("days")
-    if not key or not days:
-        return jsonify({"success": False, "message": "라이센스와 연장 일수 필요"}), 400
-    success, msg = extend_license_logic(key, days)
-    return jsonify({"success": success, "message": msg})
-
 @app.route("/api/drm/check", methods=["POST"])
 def api_check():
     data = request.json
@@ -144,28 +94,23 @@ def api_check():
     valid, msg = check_drm_logic(key)
     return jsonify({"valid": valid, "message": msg})
 
-@app.route("/api/drm/list", methods=["GET"])
-def api_list():
+@app.route("/api/drm/lock", methods=["POST"])
+def api_lock():
+    data = request.json
+    key = data.get("license")
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
     licenses = load_licenses()
-    out = []
-    for k, v in licenses.items():
-        out.append({
-            "license": v["raw"],
-            "active": v["active"],
-            "disabled": v["disabled"],
-            "created_at": v["created_at"],
-            "expires_at": v["expires_at"]
-        })
-    return jsonify({"licenses": out})
-
+    hashed = hash_key(key)
+    if hashed not in licenses:
+        return jsonify({"success": False, "message": "라이센스 없음"}), 404
+    licenses[hashed]["active"] = False
+    licenses[hashed]["disabled"] = True
+    save_licenses(licenses)
+    return jsonify({"success": True, "message": "비활성화 완료"})
 
 # ------------------
-# 실행
+# 서버 실행
 # ------------------
-if __name__=="__main__":
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
-
-
-
-
