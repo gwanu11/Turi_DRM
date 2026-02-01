@@ -3,7 +3,7 @@ import uuid
 import hashlib
 import os
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 import threading
 
 # ===============================
@@ -126,26 +126,9 @@ def api_drm_lock():
 # 🌐 웹 페이지
 # ===============================
 @app.route("/", methods=["GET"])
-def block_page():
-    return """
-    <html>
-    <head>
-        <title>접근 권한 없음</title>
-        <style>
-            body {background:#0f172a;color:white;font-family:Arial;
-                  display:flex;justify-content:center;align-items:center;height:100vh;}
-            .box {background:#020617;padding:40px;border-radius:12px;
-                  box-shadow:0 0 20px rgba(0,0,0,0.6);text-align:center;}
-        </style>
-    </head>
-    <body>
-        <div class="box">
-            <h1>🚫 접근 권한 없음</h1>
-            <p>이 웹사이트에 접속할 권한이 없습니다.</p>
-        </div>
-    </body>
-    </html>
-    """
+def home():
+    # "/" 접속 시 자동으로 로그인 페이지로 리다이렉트
+    return redirect("/login")
 
 @app.route("/login", methods=["GET","POST"])
 def login():
