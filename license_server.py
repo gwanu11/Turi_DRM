@@ -4,19 +4,13 @@ import random
 import string
 
 app = Flask(__name__)
+licenses = {}
 
-# ----- 간단 메모리 DB -----
-licenses = {}  # { license_key: {"active": True, "expire_at": datetime, "created_at": datetime} }
-
-# ----- 라이센스 생성 함수 -----
 def generate_license():
     def rand4():
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"TURI-DRM-{rand4()}-{rand4()}"
 
-# ----- API 엔드포인트 -----
-
-# 1. 라이센스 생성
 @app.route("/api/license/create", methods=["POST"])
 def create_license():
     data = request.get_json()
@@ -31,9 +25,11 @@ def create_license():
         "expire_at": expire_at,
         "created_at": datetime.now()
     }
-    return jsonify({"license": license_key, "expire_at": expire_at.isoformat()})
+    return jsonify({
+        "license": license_key,
+        "expire_at": expire_at.isoformat()
+    })
 
-# 2. 라이센스 비활성화
 @app.route("/api/license/deactivate", methods=["POST"])
 def deactivate_license():
     data = request.get_json()
@@ -43,7 +39,6 @@ def deactivate_license():
     licenses[key]["active"] = False
     return jsonify({"success": True})
 
-# 3. 라이센스 활성화
 @app.route("/api/license/activate", methods=["POST"])
 def activate_license():
     data = request.get_json()
@@ -53,12 +48,10 @@ def activate_license():
     licenses[key]["active"] = True
     return jsonify({"success": True})
 
-# 4. 라이센스 목록
 @app.route("/api/license/list", methods=["GET"])
 def list_licenses():
     return jsonify({"licenses": list(licenses.keys())})
 
-# 5. 프로그램 DRM 검증
 @app.route("/api/license/verify", methods=["POST"])
 def verify_license():
     data = request.get_json()
@@ -70,8 +63,10 @@ def verify_license():
         return jsonify({"valid": False, "reason": "disabled"})
     if lic["expire_at"] < datetime.now():
         return jsonify({"valid": False, "reason": "expired"})
-    return jsonify({"valid": True, "expire_at": lic["expire_at"].isoformat()})
+    return jsonify({
+        "valid": True,
+        "expire_at": lic["expire_at"].isoformat()
+    })
 
-# ----- 서버 실행 -----
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
