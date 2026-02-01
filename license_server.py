@@ -74,7 +74,30 @@ def check_license(key):
 # API
 # ------------------
 
+@app.route("/api/drm/lock", methods=["POST"])
+def api_lock():
+    data = request.json
+    key = data.get("license")
+    
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
 
+    licenses = load_licenses()
+    hashed = hash_key(key)
+
+    if hashed not in licenses:
+        return jsonify({"success": False, "message": "라이센스 없음"}), 404
+
+    # 비활성화 처리
+    licenses[hashed]["disabled"] = True
+    licenses[hashed]["active"] = False
+    save_licenses(licenses)
+
+    # 로그 기록 (선택사항: 파일이나 DB에 기록 가능)
+    print(f"🚨 라이센스 {key}가 강제 비활성화되었습니다!")
+
+    return jsonify({"success": True, "message": "라이센스 강제 비활성화 완료"})
+    
 @app.route("/api/drm/create", methods=["POST"])
 def api_create():
     data = request.json
@@ -141,6 +164,7 @@ def api_list():
 # ------------------
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
 
