@@ -88,9 +88,55 @@ def check_drm_logic(key):
         return False, "만료됨"
     return True, "정상"
 
+
 # ------------------
 # API 엔드포인트
 # ------------------
+
+@app.route("/api/drm/create", methods=["POST"])
+def api_create():
+    data = request.json
+    days = data.get("days")
+    if not days:
+        return jsonify({"success": False, "message": "기간(days) 필요"}), 400
+    
+    key = create_license(days)  # 기존 로직 그대로 사용
+    return jsonify({"success": True, "license": key, "days": days})
+
+@app.route("/api/drm/activate", methods=["POST"])
+def api_activate():
+    data = request.json
+    key = data.get("license")
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
+    success, msg = activate_license(key)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/deactivate", methods=["POST"])
+def api_deactivate():
+    data = request.json
+    key = data.get("license")
+    if not key:
+        return jsonify({"success": False, "message": "라이센스 필요"}), 400
+    success, msg = deactivate_license(key)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/extend", methods=["POST"])
+def api_extend():
+    data = request.json
+    key = data.get("license")
+    days = data.get("days")
+    if not key or not days:
+        return jsonify({"success": False, "message": "라이센스 및 연장 기간 필요"}), 400
+    success, msg = extend_license(key, days)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/list", methods=["GET"])
+def api_list():
+    licenses = load_licenses()
+    return jsonify({"success": True, "licenses": licenses})
+
+    
 @app.route("/api/drm/check", methods=["POST"])
 def api_check():
     data = request.json
@@ -120,4 +166,5 @@ def api_lock():
 # ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
