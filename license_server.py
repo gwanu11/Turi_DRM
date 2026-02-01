@@ -33,6 +33,8 @@ def save_licenses(data):
 # ------------------
 # 라이센스 로직
 # ------------------
+
+
 def create_license(days):
     licenses = load_licenses()
     raw_key = str(uuid.uuid4()).upper()
@@ -73,13 +75,17 @@ def extend_license(key, days):
     return True, f"{days}일 연장 완료"
 
 def check_drm_logic(key):
-    licenses = load_licenses()
-    hashed = hash_key(key)
-    if hashed not in licenses: return False, "라이센스 없음"
+    licenses = load_licenses()  # JSON 파일 로드
+    hashed = hash_key(key)      # 클라이언트에서 보내는 키 해시화
+    if hashed not in licenses:
+        return False, "라이센스 없음"
     lic = licenses[hashed]
-    if lic["disabled"]: return False, "비활성화됨"
-    if not lic["active"]: return False, "활성화되지 않음"
-    if now() > datetime.fromisoformat(lic["expires_at"]): return False, "만료됨"
+    if lic["disabled"]:
+        return False, "비활성화됨"
+    if not lic["active"]:
+        return False, "활성화되지 않음"
+    if datetime.now() > datetime.fromisoformat(lic["expires_at"]):
+        return False, "만료됨"
     return True, "정상"
 
 # ------------------
@@ -114,3 +120,4 @@ def api_lock():
 # ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
