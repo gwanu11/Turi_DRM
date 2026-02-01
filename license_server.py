@@ -4,24 +4,12 @@ import random
 import string
 
 app = Flask(__name__)
+licenses = {}  # license_key: {"active": bool, "expire_at": str, "created_at": str}
 
-# 메모리 DB
-licenses = {}  # license_key: {"active": True, "expire_at": datetime, "created_at": datetime}
-
-# 라이센스 생성 함수
 def generate_license():
     def rand4():
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"TURI-DRM-{rand4()}-{rand4()}"
-
-# --- 헬퍼: datetime -> 문자열 변환 ---
-def serialize_license(key, data):
-    return {
-        "license": key,
-        "active": data["active"],
-        "expire_at": data["expire_at"].isoformat(),
-        "created_at": data["created_at"].isoformat()
-    }
 
 # --- 라이센스 생성 ---
 @app.route("/api/license/create", methods=["POST"])
@@ -32,16 +20,21 @@ def create_license():
         return jsonify({"error": "days는 숫자여야 합니다."}), 400
 
     license_key = generate_license()
-    expire_at = datetime.now() + timedelta(days=days)
-    created_at = datetime.now()
+    expire_at = (datetime.now() + timedelta(days=days)).isoformat()
+    created_at = datetime.now().isoformat()
+
     licenses[license_key] = {
         "active": True,
         "expire_at": expire_at,
         "created_at": created_at
     }
-    return jsonify(serialize_license(license_key, licenses[license_key]))
+    return jsonify({
+        "license": license_key,
+        "expire_at": expire_at,
+        "created_at": created_at
+    })
 
-# --- 라이센스 비활성화 ---
+# --- 비활성화 ---
 @app.route("/api/license/deactivate", methods=["POST"])
 def deactivate_license():
     data = request.get_json()
@@ -51,7 +44,7 @@ def deactivate_license():
     licenses[key]["active"] = False
     return jsonify({"success": True})
 
-# --- 라이센스 활성화 ---
+# --- 활성화 ---
 @app.route("/api/license/activate", methods=["POST"])
 def activate_license():
     data = request.get_json()
@@ -61,14 +54,14 @@ def activate_license():
     licenses[key]["active"] = True
     return jsonify({"success": True})
 
-# --- 라이센스 목록 ---
+# --- 목록 ---
 @app.route("/api/license/list", methods=["GET"])
 def list_licenses():
-    result = [serialize_license(k, v) for k, v in licenses.items()]
-    return jsonify({"licenses": result})
+    return jsonify({"licenses": licenses})
 
-# --- 라이센스 검증 ---
+# --- 검증 ---
 @app.route("/api/license/verify", methods=["POST"])
 def verify_license():
     data = request.get_json()
-    key = data.get("lic
+    key = data.get("license")
+    lic = licenses.get(k
