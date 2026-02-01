@@ -1,23 +1,26 @@
-import json, os, uuid, hashlib
+import os
+import json
+import uuid
+import hashlib
+import threading
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 
 # ===============================
 # 설정
 # ===============================
-app = Flask(__name__)
-app.secret_key = "SUPER_SECRET_SESSION_KEY"
-
 LICENSE_FILE = "licenses.json"
 SECRET_KEY = "MY_SUPER_SECRET_KEY"
-
 ADMIN_ID = "adonis"
 ADMIN_PW = "adonis2023"
+
+app = Flask(__name__)
 
 # ===============================
 # 유틸
 # ===============================
-def now(): return datetime.utcnow()
+def now():
+    return datetime.utcnow()
 
 def hash_key(key: str) -> str:
     return hashlib.sha256((key + SECRET_KEY).encode()).hexdigest()
@@ -26,6 +29,7 @@ def load_licenses():
     if not os.path.exists(LICENSE_FILE):
         with open(LICENSE_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f)
+        return {}
     with open(LICENSE_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -52,8 +56,10 @@ def create_license(days: int):
 def activate_license(key: str):
     licenses = load_licenses()
     hashed = hash_key(key)
-    if hashed not in licenses: return False, "라이센스 없음"
-    if licenses[hashed]["disabled"]: return False, "비활성화된 라이센스"
+    if hashed not in licenses:
+        return False, "라이센스 없음"
+    if licenses[hashed]["disabled"]:
+        return False, "비활성화된 라이센스"
     licenses[hashed]["active"] = True
     save_licenses(licenses)
     return True, "활성화 완료"
@@ -61,7 +67,8 @@ def activate_license(key: str):
 def deactivate_license(key: str):
     licenses = load_licenses()
     hashed = hash_key(key)
-    if hashed not in licenses: return False, "라이센스 없음"
+    if hashed not in licenses:
+        return False, "라이센스 없음"
     licenses[hashed]["disabled"] = True
     licenses[hashed]["active"] = False
     save_licenses(licenses)
@@ -70,104 +77,157 @@ def deactivate_license(key: str):
 def extend_license(key: str, days: int):
     licenses = load_licenses()
     hashed = hash_key(key)
-    if hashed not in licenses: return False, "라이센스 없음"
+    if hashed not in licenses:
+        return False, "라이센스 없음"
     expires = datetime.fromisoformat(licenses[hashed]["expires_at"])
     licenses[hashed]["expires_at"] = (expires + timedelta(days=days)).isoformat()
     save_licenses(licenses)
     return True, f"{days}일 연장 완료"
 
+def lock_license(key: str):
+    licenses = load_licenses()
+    hashed = hash_key(key)
+    if hashed not in licenses:
+        return False, "라이센스 없음"
+    licenses[hashed]["disabled"] = True
+    licenses[hashed]["active"] = False
+    save_licenses(licenses)
+    return True, "잠금 완료"
+
 def check_drm_logic(key: str):
     licenses = load_licenses()
     hashed = hash_key(key)
-    if hashed not in licenses: return False, "INVALID_LICENSE"
+    if hashed not in licenses:
+        return False, "INVALID_LICENSE"
     lic = licenses[hashed]
-    if lic["disabled"]: return False, "DISABLED"
-    if not lic["active"]: return False, "NOT_ACTIVATED"
-    if now() > datetime.fromisoformat(lic["expires_at"]): return False, "EXPIRED"
+    if lic["disabled"]:
+        return False, "DISABLED"
+    if not lic["active"]:
+        return False, "NOT_ACTIVATED"
+    if now() > datetime.fromisoformat(lic["expires_at"]):
+        return False, "EXPIRED"
     return True, "OK"
 
 # ===============================
-# HTML 템플릿
+# 🔐 DRM API
 # ===============================
-LOGIN_HTML = """
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>로그인 - TURI DRM</title>
+@app.route("/api/drm/check", methods=["POST"])
+def api_drm_check():
+    data = request.json
+    key = data.get("license")
+    if not key:
+        return jsonify({"valid": False, "message": "NO_LICENSE"}), 400
+    valid, msg = check_drm_logic(key)
+    return jsonify({"valid": valid, "message": msg})
+
+@app.route("/api/drm/create", methods=["POST"])
+def api_drm_create():
+    data = request.json
+    days = int(data.get("days", 30))
+    key = create_license(days)
+    return jsonify({"license": key})
+
+@app.route("/api/drm/activate", methods=["POST"])
+def api_drm_activate():
+    data = request.json
+    key = data.get("license")
+    success, msg = activate_license(key)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/deactivate", methods=["POST"])
+def api_drm_deactivate():
+    data = request.json
+    key = data.get("license")
+    success, msg = deactivate_license(key)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/extend", methods=["POST"])
+def api_drm_extend():
+    data = request.json
+    key = data.get("license")
+    days = int(data.get("days", 0))
+    success, msg = extend_license(key, days)
+    return jsonify({"success": success, "message": msg})
+
+@app.route("/api/drm/lock", methods=["POST"])
+def api_drm_lock():
+    data = request.json
+    key = data.get("license")
+    success, msg = lock_license(key)
+    return jsonify({"success": success, "message": msg})
+
+# ===============================
+# 🌐 로그인/대시보드 페이지
+# ===============================
+LOGIN_PAGE = """
+<html>
+<head>
+<title>로그인 - TURI DRM</title>
 <style>
-body {background:#0f172a;color:white;font-family:'Segoe UI',Arial,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
-.box {background:#1e293b;padding:50px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5);text-align:center;width:320px;}
-h2 {margin-bottom:30px;color:#facc15;}
-input {padding:12px;margin:10px 0;width:100%;border-radius:8px;border:none;background:#0f172a;color:white;}
-input::placeholder {color:#94a3b8;}
-button {padding:12px 20px;width:100%;border:none;border-radius:8px;background:#2563eb;color:white;font-weight:bold;cursor:pointer;transition:0.3s;}
-button:hover {background:#1d4ed8;}
-.error {color:#f87171;margin-bottom:10px;}
-</style></head><body>
+body {background:#0f172a;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
+.box {background:#020617;padding:40px;border-radius:12px;box-shadow:0 0 20px rgba(0,0,0,0.6);text-align:center;width:400px;}
+input {width:90%;padding:10px;margin:10px 0;border-radius:6px;border:none;}
+button {padding:10px 20px;border:none;border-radius:6px;background:#6366f1;color:white;cursor:pointer;font-weight:bold;}
+</style>
+</head>
+<body>
 <div class="box">
-<h2>🔐 로그인</h2>
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
-<form method="post">
-<input type="text" name="id" placeholder="아이디" required><br>
-<input type="password" name="pw" placeholder="비밀번호" required><br>
+<h2>로그인</h2>
+<form method="POST" action="/login">
+<input type="text" name="username" placeholder="아이디" required><br>
+<input type="password" name="password" placeholder="비밀번호" required><br>
 <button type="submit">로그인</button>
 </form>
-</div></body></html>
+</div>
+</body>
+</html>
 """
 
-DASH_HTML = """
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>대시보드 - TURI DRM</title>
+DASHBOARD_PAGE = """
+<html>
+<head>
+<title>대시보드 - TURI DRM</title>
 <style>
-body {background:#0f172a;color:white;font-family:'Segoe UI',Arial,sans-serif;padding:20px;margin:0;}
-h1 {color:#facc15;text-align:center;}
-.table-container {overflow-x:auto;background:#1e293b;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.5);}
-table {width:100%;border-collapse:collapse;}
-th,td {padding:12px;border-bottom:1px solid #334155;text-align:center;}
-th {background:#2563eb;color:white;}
-tr:hover {background:#334155;}
-button {padding:5px 12px;border:none;border-radius:8px;background:#ef4444;color:white;cursor:pointer;transition:0.3s;}
-button:hover {background:#dc2626;}
+body {background:#0f172a;color:white;font-family:Arial;padding:20px;}
+h1 {color:#6366f1;}
+table {width:100%;border-collapse:collapse;margin-top:20px;}
+th, td {border:1px solid #333;padding:8px;text-align:center;}
+th {background:#1e293b;}
+button {padding:6px 12px;border:none;border-radius:6px;background:#6366f1;color:white;cursor:pointer;}
 </style>
-<script>
-function deactivateLicense(key){
-    if(!confirm("정말로 비활성화하시겠습니까?")) return;
-    fetch("/api/drm/lock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({license:key})})
-    .then(res=>res.json()).then(data=>{
-        alert(data.message);
-        location.reload();
-    }).catch(e=>alert("오류 발생"));
-}
-function activateLicense(key){
-    fetch("/api/drm/activate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({license:key})})
-    .then(res=>res.json()).then(data=>{
-        alert(data.message);
-        location.reload();
-    }).catch(e=>alert("오류 발생"));
-}
-</script>
-</head><body>
-<h1>📊 TURI DRM Dashboard</h1>
-<div class="table-container">
+</head>
+<body>
+<h1>DRM 관리자 대시보드</h1>
+<p>총 라이센스: {{ total }}</p>
 <table>
-<tr><th>라이센스</th><th>생성일</th><th>만료일</th><th>활성</th><th>상태</th><th>액션</th></tr>
-{% for key,lic in licenses.items() %}
+<tr><th>라이센스</th><th>활성</th><th>비활성</th><th>만료</th><th>생성일</th><th>행동</th></tr>
+{% for k,v in licenses.items() %}
 <tr>
-<td>{{ key }}</td>
-<td>{{ lic.created_at }}</td>
-<td>{{ lic.expires_at }}</td>
-<td>{{ "✅" if lic.active else "❌" }}</td>
-<td>{{ "🚫 비활성" if lic.disabled else "🟢 활성" }}</td>
+<td>{{ v.raw }}</td>
+<td>{{ "✅" if v.active else "❌" }}</td>
+<td>{{ "✅" if v.disabled else "❌" }}</td>
+<td>{{ v.expires_at }}</td>
+<td>{{ v.created_at }}</td>
 <td>
-<button onclick='activateLicense("{{ key }}")'>활성화</button>
-<button onclick='deactivateLicense("{{ key }}")'>비활성화</button>
+<form method="POST" action="/dashboard/action">
+<input type="hidden" name="license" value="{{ v.raw }}">
+<button name="action" value="activate">활성화</button>
+<button name="action" value="deactivate">비활성화</button>
+</form>
 </td>
 </tr>
 {% endfor %}
 </table>
-</div>
-</body></html>
+</body>
+</html>
 """
 
 # ===============================
-# Flask 라우트
+# 로그인
 # ===============================
+from flask import session
+app.secret_key = os.urandom(24)
+
 @app.route("/", methods=["GET"])
 def home():
     return redirect("/login")
@@ -175,39 +235,70 @@ def home():
 @app.route("/login", methods=["GET","POST"])
 def login():
     if request.method=="POST":
-        id_=request.form.get("id")
-        pw=request.form.get("pw")
-        if id_==ADMIN_ID and pw==ADMIN_PW:
+        u=request.form.get("username")
+        p=request.form.get("password")
+        if u==ADMIN_ID and p==ADMIN_PW:
             session["logged_in"]=True
             return redirect("/dashboard")
         else:
-            return render_template_string(LOGIN_HTML,error="아이디 또는 비밀번호 오류")
-    return render_template_string(LOGIN_HTML)
+            return "<h3 style='color:red;text-align:center;'>로그인 실패</h3>"+LOGIN_PAGE
+    return LOGIN_PAGE
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
     if not session.get("logged_in"):
         return redirect("/login")
-    licenses = load_licenses()
-    return render_template_string(DASH_HTML,licenses=licenses)
+    raw_licenses={}
+    for h, v in load_licenses().items():
+        raw_licenses[h] = {**v, "raw": h}  # 실제 키 표시
+    return render_template_string(DASHBOARD_PAGE, licenses=raw_licenses, total=len(raw_licenses))
+
+@app.route("/dashboard/action", methods=["POST"])
+def dashboard_action():
+    if not session.get("logged_in"):
+        return redirect("/login")
+    key=request.form.get("license")
+    action=request.form.get("action")
+    msg=""
+    if action=="activate":
+        _, msg=activate_license(key)
+    elif action=="deactivate":
+        _, msg=deactivate_license(key)
+    return f"<h3 style='color:#6366f1;text-align:center;'>{msg}</h3><a href='/dashboard'>대시보드로 돌아가기</a>"
 
 # ===============================
-# DRM API
+# CLI 관리자
 # ===============================
-@app.route("/api/drm/activate", methods=["POST"])
-def api_activate():
-    key=request.json.get("license")
-    success,msg=activate_license(key)
-    return jsonify({"success":success,"message":msg})
-
-@app.route("/api/drm/lock", methods=["POST"])
-def api_lock():
-    key=request.json.get("license")
-    success,msg=deactivate_license(key)
-    return jsonify({"success":success,"message":msg})
+def admin_cli():
+    while True:
+        print("\n1. 라이센스 생성")
+        print("2. 라이센스 활성화")
+        print("3. 라이센스 비활성화")
+        print("4. 라이센스 기간 연장")
+        print("5. DRM 체크")
+        print("0. 종료")
+        cmd=input("선택: ")
+        if cmd=="1":
+            days=int(input("기간(일): "))
+            print("라이센스:", create_license(days))
+        elif cmd=="2":
+            print(activate_license(input("키: "))[1])
+        elif cmd=="3":
+            print(deactivate_license(input("키: "))[1])
+        elif cmd=="4":
+            key=input("키: ")
+            days=int(input("연장 일수: "))
+            print(extend_license(key, days)[1])
+        elif cmd=="5":
+            print(check_drm_logic(input("키: "))[1])
+        elif cmd=="0":
+            break
+        else:
+            print("잘못된 입력")
 
 # ===============================
 # 실행
 # ===============================
 if __name__=="__main__":
-    app.run(host="0.0.0.0",port=10000,debug=True)
+    threading.Thread(target=admin_cli, daemon=True).start()
+    app.run(host="0.0.0.0", p
