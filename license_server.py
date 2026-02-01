@@ -4,13 +4,14 @@ import random
 import string
 
 app = Flask(__name__)
-licenses = {}
+licenses = {}  # {license_key: {"active": True, "expire_at": datetime, "created_at": datetime}}
 
 def generate_license():
     def rand4():
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"TURI-DRM-{rand4()}-{rand4()}"
 
+# --- 라이센스 생성 ---
 @app.route("/api/license/create", methods=["POST"])
 def create_license():
     data = request.get_json()
@@ -20,16 +21,20 @@ def create_license():
 
     license_key = generate_license()
     expire_at = datetime.now() + timedelta(days=days)
+    created_at = datetime.now()
     licenses[license_key] = {
         "active": True,
         "expire_at": expire_at,
-        "created_at": datetime.now()
+        "created_at": created_at
     }
+    # 반환 시점에서 datetime -> 문자열 변환
     return jsonify({
         "license": license_key,
-        "expire_at": expire_at.isoformat()
+        "expire_at": expire_at.isoformat(),
+        "created_at": created_at.isoformat()
     })
 
+# --- 라이센스 비활성화 ---
 @app.route("/api/license/deactivate", methods=["POST"])
 def deactivate_license():
     data = request.get_json()
@@ -39,6 +44,7 @@ def deactivate_license():
     licenses[key]["active"] = False
     return jsonify({"success": True})
 
+# --- 라이센스 활성화 ---
 @app.route("/api/license/activate", methods=["POST"])
 def activate_license():
     data = request.get_json()
@@ -48,10 +54,21 @@ def activate_license():
     licenses[key]["active"] = True
     return jsonify({"success": True})
 
+# --- 라이센스 목록 ---
 @app.route("/api/license/list", methods=["GET"])
 def list_licenses():
-    return jsonify({"licenses": list(licenses.keys())})
+    # 모든 expire_at, created_at 문자열 처리
+    result = []
+    for key, val in licenses.items():
+        result.append({
+            "license": key,
+            "active": val["active"],
+            "expire_at": val["expire_at"].isoformat(),
+            "created_at": val["created_at"].isoformat()
+        })
+    return jsonify({"licenses": result})
 
+# --- 라이센스 검증 (프로그램용) ---
 @app.route("/api/license/verify", methods=["POST"])
 def verify_license():
     data = request.get_json()
@@ -65,7 +82,8 @@ def verify_license():
         return jsonify({"valid": False, "reason": "expired"})
     return jsonify({
         "valid": True,
-        "expire_at": lic["expire_at"].isoformat()
+        "expire_at": lic["expire_at"].isoformat(),
+        "created_at": lic["created_at"].isoformat()
     })
 
 if __name__ == "__main__":
