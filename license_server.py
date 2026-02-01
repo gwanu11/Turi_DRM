@@ -75,27 +75,13 @@ def check_license(key):
 # ------------------
 
 @app.route("/api/drm/list", methods=["GET"])
-def api_drm_list():
-    """
-    모든 라이센스 정보를 반환합니다.
-    반환 형식:
-    {
-        "success": True,
-        "licenses": {
-            "<해시된 라이센스>": {
-                "active": True/False,
-                "disabled": True/False,
-                "expires_at": "YYYY-MM-DDTHH:MM:SS"
-            },
-            ...
-        }
-    }
-    """
-    licenses = load_licenses()  # 기존 유틸 사용
-    return jsonify({
-        "success": True,
-        "licenses": licenses
-    })
+def api_get(endpoint):
+    url = f"{API_BASE}/{endpoint}"
+    try:
+        r = requests.get(url, timeout=5)
+        return r.json()  # 여기서 json()이 정상적으로 반환되도록
+    except Exception as e:
+        return {"success": False, "message": f"서버 연결 실패: {e}"}
     
 @app.route("/api/drm/create", methods=["POST"])
 def api_create():
@@ -138,4 +124,5 @@ def api_check():
 # ------------------
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
