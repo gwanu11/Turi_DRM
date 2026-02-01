@@ -3,8 +3,10 @@
     "id": "adonis",
     "password": "adonis2023"
   },
-  "license": {
-    "status": "active",
-    "expire": "2026-12-31"
+  "licenses": {
+    "ABC-123-XYZ": {
+      "active": true,
+      "expires": "2099-12-31"
+    }
   }
 }
