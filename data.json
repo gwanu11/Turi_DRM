@@ -1,0 +1,10 @@
+{
+  "account": {
+    "id": "adonis",
+    "password": "adonis2023"
+  },
+  "license": {
+    "status": "active",
+    "expire": "2026-12-31"
+  }
+}
