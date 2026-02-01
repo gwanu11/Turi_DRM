@@ -73,15 +73,6 @@ def check_license(key):
 # ------------------
 # API
 # ------------------
-
-@app.route("/api/drm/list", methods=["GET"])
-def api_get(endpoint):
-    url = f"{API_BASE}/{endpoint}"
-    try:
-        r = requests.get(url, timeout=5)
-        return r.json()  # 여기서 json()이 정상적으로 반환되도록
-    except Exception as e:
-        return {"success": False, "message": f"서버 연결 실패: {e}"}
     
 @app.route("/api/drm/create", methods=["POST"])
 def api_create():
@@ -124,5 +115,6 @@ def api_check():
 # ------------------
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=10000)
+
 
 
