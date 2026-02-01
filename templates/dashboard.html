@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>관리자 대시보드</title>
+    <style>
+        body{background:#0f172a;color:white;font-family:Arial;padding:20px;}
+        table{border-collapse:collapse;width:100%;margin-top:20px;}
+        th,td{border:1px solid #333;padding:8px;text-align:center;}
+        th{background:#1e293b;}
+        input,select{padding:5px;margin:2px;}
+        .msg{color:#3b82f6;font-weight:bold;margin-bottom:10px;}
+        .status-active{color:lime;font-weight:bold;}
+        .status-disabled{color:red;font-weight:bold;}
+        .status-expired{color:orange;font-weight:bold;}
+    </style>
+</head>
+<body>
+<h1>관리자 대시보드</h1>
+<div class="msg">{{message}}</div>
+<form method="post">
+    <select name="action">
+        <option value="create">라이센스 생성</option>
+        <option value="activate">라이센스 활성화</option>
+        <option value="deactivate">라이센스 비활성화</option>
+        <option value="extend">라이센스 기간 연장</option>
+    </select>
+    <input name="key" placeholder="키 (생성 제외)">
+    <input name="days" placeholder="기간/연장(일)">
+    <input type="submit" value="실행">
+</form>
+<table>
+    <tr><th>라이센스</th><th>활성</th><th>비활성</th><th>생성일</th><th>만료일</th></tr>
+    {% for k,v in licenses.items() %}
+    <tr>
+        <td>{{k}}</td>
+        <td class="{{'status-active' if v.active else ''}}">{{v.active}}</td>
+        <td class="{{'status-disabled' if v.disabled else ''}}">{{v.disabled}}</td>
+        <td>{{v.created_at}}</td>
+        <td class="{{'status-expired' if v.expires_at < now}}">{{v.expires_at}}</td>
+    </tr>
+    {% endfor %}
+</table>
+</body>
+</html>
