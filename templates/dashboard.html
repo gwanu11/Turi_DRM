@@ -1,45 +1,48 @@
+DASH_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>관리자 대시보드</title>
-    <style>
-        body{background:#0f172a;color:white;font-family:Arial;padding:20px;}
-        table{border-collapse:collapse;width:100%;margin-top:20px;}
-        th,td{border:1px solid #333;padding:8px;text-align:center;}
-        th{background:#1e293b;}
-        input,select{padding:5px;margin:2px;}
-        .msg{color:#3b82f6;font-weight:bold;margin-bottom:10px;}
-        .status-active{color:lime;font-weight:bold;}
-        .status-disabled{color:red;font-weight:bold;}
-        .status-expired{color:orange;font-weight:bold;}
-    </style>
+<meta charset="UTF-8">
+<title>대시보드 - TURI DRM</title>
+<style>
+body {background:#0f172a;color:white;font-family:'Segoe UI',Arial,sans-serif;padding:20px;margin:0;}
+h1 {color:#facc15;text-align:center;}
+.table-container {overflow-x:auto;background:#1e293b;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.5);}
+table {width:100%;border-collapse:collapse;}
+th,td {padding:12px;border-bottom:1px solid #334155;text-align:center;}
+th {background:#2563eb;color:white;}
+tr:hover {background:#334155;}
+button {padding:5px 12px;border:none;border-radius:8px;background:#ef4444;color:white;cursor:pointer;transition:0.3s;}
+button:hover {background:#dc2626;}
+</style>
+<script>
+function deactivateLicense(key){
+    if(!confirm("정말로 비활성화하시겠습니까?")) return;
+    fetch("/api/drm/lock",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({license:key})})
+    .then(res=>res.json()).then(data=>{
+        alert(data.message);
+        location.reload();
+    }).catch(e=>alert("오류 발생"));
+}
+</script>
 </head>
 <body>
-<h1>관리자 대시보드</h1>
-<div class="msg">{{message}}</div>
-<form method="post">
-    <select name="action">
-        <option value="create">라이센스 생성</option>
-        <option value="activate">라이센스 활성화</option>
-        <option value="deactivate">라이센스 비활성화</option>
-        <option value="extend">라이센스 기간 연장</option>
-    </select>
-    <input name="key" placeholder="키 (생성 제외)">
-    <input name="days" placeholder="기간/연장(일)">
-    <input type="submit" value="실행">
-</form>
+<h1>📊 TURI DRM Dashboard</h1>
+<div class="table-container">
 <table>
-    <tr><th>라이센스</th><th>활성</th><th>비활성</th><th>생성일</th><th>만료일</th></tr>
-    {% for k,v in licenses.items() %}
-    <tr>
-        <td>{{k}}</td>
-        <td class="{{'status-active' if v.active else ''}}">{{v.active}}</td>
-        <td class="{{'status-disabled' if v.disabled else ''}}">{{v.disabled}}</td>
-        <td>{{v.created_at}}</td>
-        <td class="{{'status-expired' if v.expires_at < now}}">{{v.expires_at}}</td>
-    </tr>
-    {% endfor %}
+<tr><th>라이센스</th><th>생성일</th><th>만료일</th><th>활성</th><th>상태</th><th>액션</th></tr>
+{% for key,lic in licenses.items() %}
+<tr>
+<td>{{ key }}</td>
+<td>{{ lic.created_at }}</td>
+<td>{{ lic.expires_at }}</td>
+<td>{{ "✅" if lic.active else "❌" }}</td>
+<td>{{ "🚫 비활성" if lic.disabled else "🟢 활성" }}</td>
+<td><button onclick='deactivateLicense("{{ key }}")'>비활성화</button></td>
+</tr>
+{% endfor %}
 </table>
+</div>
 </body>
 </html>
+"""
