@@ -4,12 +4,24 @@ import random
 import string
 
 app = Flask(__name__)
-licenses = {}  # {license_key: {"active": True, "expire_at": datetime, "created_at": datetime}}
 
+# 메모리 DB
+licenses = {}  # license_key: {"active": True, "expire_at": datetime, "created_at": datetime}
+
+# 라이센스 생성 함수
 def generate_license():
     def rand4():
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"TURI-DRM-{rand4()}-{rand4()}"
+
+# --- 헬퍼: datetime -> 문자열 변환 ---
+def serialize_license(key, data):
+    return {
+        "license": key,
+        "active": data["active"],
+        "expire_at": data["expire_at"].isoformat(),
+        "created_at": data["created_at"].isoformat()
+    }
 
 # --- 라이센스 생성 ---
 @app.route("/api/license/create", methods=["POST"])
@@ -27,12 +39,7 @@ def create_license():
         "expire_at": expire_at,
         "created_at": created_at
     }
-    # 반환 시점에서 datetime -> 문자열 변환
-    return jsonify({
-        "license": license_key,
-        "expire_at": expire_at.isoformat(),
-        "created_at": created_at.isoformat()
-    })
+    return jsonify(serialize_license(license_key, licenses[license_key]))
 
 # --- 라이센스 비활성화 ---
 @app.route("/api/license/deactivate", methods=["POST"])
@@ -57,34 +64,11 @@ def activate_license():
 # --- 라이센스 목록 ---
 @app.route("/api/license/list", methods=["GET"])
 def list_licenses():
-    # 모든 expire_at, created_at 문자열 처리
-    result = []
-    for key, val in licenses.items():
-        result.append({
-            "license": key,
-            "active": val["active"],
-            "expire_at": val["expire_at"].isoformat(),
-            "created_at": val["created_at"].isoformat()
-        })
+    result = [serialize_license(k, v) for k, v in licenses.items()]
     return jsonify({"licenses": result})
 
-# --- 라이센스 검증 (프로그램용) ---
+# --- 라이센스 검증 ---
 @app.route("/api/license/verify", methods=["POST"])
 def verify_license():
     data = request.get_json()
-    key = data.get("license")
-    lic = licenses.get(key)
-    if not lic:
-        return jsonify({"valid": False, "reason": "not_found"})
-    if not lic["active"]:
-        return jsonify({"valid": False, "reason": "disabled"})
-    if lic["expire_at"] < datetime.now():
-        return jsonify({"valid": False, "reason": "expired"})
-    return jsonify({
-        "valid": True,
-        "expire_at": lic["expire_at"].isoformat(),
-        "created_at": lic["created_at"].isoformat()
-    })
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    key = data.get("lic
